@@ -1,0 +1,9 @@
+#---------------------------------------#
+# microAQUA integration #
+#---------------------------------------#
+sensor more: !include custom_components/microaqua/uaqua_sensor.yaml
+switch more: !include custom_components/microaqua/uaqua_switch.yaml
+automation more: !include custom_components/microaqua/uaqua_automations.yaml
+
+shell_command more: !include custom_components/microaqua/uaqua_shell_command.yaml
+input_number more: !include custom_components/microaqua/uaqua_input_number.yaml
