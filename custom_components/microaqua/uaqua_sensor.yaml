@@ -47,7 +47,6 @@
 #   timeout: 3
 #   scan_interval: 1
 #   value_template:  "{{ value.split('=')[1]}}"
-
         
 - platform: template
   sensors:
