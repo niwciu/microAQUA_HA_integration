@@ -48,7 +48,7 @@
 #   scan_interval: 1
 #   value_template:  "{{ value.split('=')[1]}}"
 
-    
+        
 - platform: template
   sensors:
     uaqua_1_ph:
@@ -56,83 +56,79 @@
       friendly_name:  pH sensor
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
-          {% if ((states('sensor.uaqua_1_last_update')|int)<15) %}
+         {% if ((states('sensor.uaqua_1_last_update')|int)<15) %}
             {{(states('sensor.uaqua_1').split(';')[0]|float /100) | round (2)}}
-          {% else %} unknown {% endif %}
+         {% else %} unknown {% endif %}
         {% else %}
-          {{states('sensor.uaqua_1')}}
+         {{states('sensor.uaqua_1')}}
         {% endif %}
       unit_of_measurement: "pH"
-      icon_template: 'hass:raspberry-pi'
+      icon_template: 'mdi:thermometer-probe'
 
     uaqua_1_temp1:
       unique_id: 'microAQUA_1_Temp1'
       friendly_name:  Czujnik Temperatury 1
-      icon_template: 'hass:thermometer'
+      icon_template: 'mdi:thermometer'
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %}  
             {% if (states('sensor.uaqua_1').split(';')[1]=='???')  %}
-              --,-
-            {% else %} {{states('sensor.uaqua_1').split(';')[1] | float / 10}} {% endif %}
+              --,- °C
+            {% else %} {{states('sensor.uaqua_1').split(';')[1] | float / 10}} °C {% endif %}
           {% else %} unknown {% endif %}
         {% else %}
             {{states('sensor.uaqua_1')}}
         {% endif %}
-      unit_of_measurement: "°C"
 
     uaqua_1_temp2:
       unique_id: 'microAQUA_1_Temp2'
       friendly_name:  Czujnik Temperatury 2
-      icon_template: 'hass:thermometer'
+      icon_template: 'mdi:thermometer'
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %} 
             {% if (states('sensor.uaqua_1').split(';')[2]=='???')  %}
-              --,-
-            {% else %} {{states('sensor.uaqua_1').split(';')[2] | float / 10}} {% endif %}
+              --,- °C
+            {% else %} {{states('sensor.uaqua_1').split(';')[2] | float / 10}} °C {% endif %}
           {% else %} unknown {% endif %}
         {% else %}
           {{states('sensor.uaqua_1')}}
         {% endif %}
-      unit_of_measurement: "°C"
 
     uaqua_1_temp3:
       unique_id: 'microAQUA_1_Temp3'
       friendly_name:  Czujnik Temperatury 3
-      icon_template: 'hass:thermometer'
+      icon_template: 'mdi:thermometer'
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %} 
             {% if (states('sensor.uaqua_1').split(';')[3]=='???')  %}
-              --,-
-            {% else %} {{states('sensor.uaqua_1').split(';')[3] | float / 10}} {% endif %}
+              --,- °C
+            {% else %} {{states('sensor.uaqua_1').split(';')[3] | float / 10}} °C {% endif %}
           {% else %} unknown {% endif %}
         {% else %}
           {{states('sensor.uaqua_1')}}
         {% endif %}
-      unit_of_measurement: " °C"
 
     uaqua_1_temp4:
       unique_id: 'microAQUA_1_Temp4'
       friendly_name:  Czujnik Temperatury 4
-      icon_template: 'hass:thermometer'
+      icon_template: 'mdi:thermometer'
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %} 
             {% if (states('sensor.uaqua_1').split(';')[4]=='???')  %}
-              --,-
-            {% else %} {{states('sensor.uaqua_1').split(';')[4] | float / 10 }} {% endif %}
+              --,- °C
+            {% else %} {{states('sensor.uaqua_1').split(';')[4] | float / 10 }} °C {% endif %}
           {% else %} unknown {% endif %}  
         {% else %}
           {{states('sensor.uaqua_1')}}
         {% endif %} 
-      unit_of_measurement: " °C"
 
     uaqua_1_co2_socket:
       unique_id: 'microAQUA_1_co2_socket'
       friendly_name: Zawór CO2
-      icon_template: 'hass:power-socket-eu'
+      icon_template: 'mdi:pipe-valve'
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %} 
@@ -157,7 +153,7 @@
     uaqua_1_o2_socket:
       unique_id: 'microAQUA_1_o2_socket'
       friendly_name: Zawór O2
-      icon_template: 'hass:power-socket-eu'
+      icon_template: 'mdi:pipe-valve'
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %} 
@@ -182,7 +178,7 @@
     uaqua_1_termoreg_socket:
       unique_id: 'microAQUA_1_termoreg_socket'
       friendly_name: Grzałka
-      icon_template: 'hass:power-socket-eu'
+      icon_template: 'mdi:power-socket-eu'
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %} 
@@ -207,7 +203,7 @@
     uaqua_1_fan_controller:
       unique_id: 'microAQUA_1_FAN_controller'
       friendly_name: Wentylator
-      icon_template: 'hass:fan'
+      icon_template: 'mdi:fan'
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %} 
@@ -255,7 +251,7 @@
     uaqua_1_led_1:
       unique_id: 'microAQUA_1_LED_1_controller'
       friendly_name: LED 1
-      icon_template: 'hass:led-on'      
+      icon_template: 'mdi:led-on'      
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %} 
@@ -269,7 +265,7 @@
     uaqua_1_led_2:
       unique_id: 'microAQUA_1_LED_2_controller'
       friendly_name: LED 2
-      icon_template: 'hass:led-on'      
+      icon_template: 'mdi:led-on'      
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %}
@@ -283,9 +279,9 @@
     uaqua_1_led_3:
       unique_id: 'microAQUA_1_LED_3_controller'
       friendly_name: LED 3
-      icon_template: 'hass:led-on'      
+      icon_template: 'mdi:led-on'      
       value_template: >
-       {% if (states('sensor.uaqua_1')!= 'unknown') %}
+        {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %}
             {{states('sensor.uaqua_1').split(';')[15]}}
           {% else %} unknown {% endif %}  
@@ -297,7 +293,7 @@
     uaqua_1_led_4:
       unique_id: 'microAQUA_1_LED_4_controller'
       friendly_name: LED 4
-      icon_template: 'hass:led-on'      
+      icon_template: 'mdi:led-on'      
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %}
@@ -312,7 +308,7 @@
     uaqua_1_temp_alarms:
       unique_id: 'microAQUA_1_temp_alarms'
       friendly_name: Alarm Temp min/max
-      icon_template: 'hass:thermometer-alert'
+      icon_template: 'mdi:thermometer-alert'
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %}
@@ -339,7 +335,7 @@
     uaqua_1_ph_alarms:
       unique_id: 'microAQUA_1_pH_alarms'
       friendly_name: Alarm pH min/max
-      icon_template: 'hass:alert'
+      icon_template: 'mdi:alert'
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %}
@@ -365,7 +361,7 @@
     uaqua_1_acustic_alarm:
       unique_id: 'microAQUA_1 acoustic alarm'
       friendly_name: Alarm Dźwiękowy Status
-      icon_template: 'hass:volume-high'
+      icon_template: 'mdi:volume-high'
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if (((states('sensor.uaqua_1').split(';')[18]) |int |bitwise_and(127))!=0) %}
@@ -388,30 +384,35 @@
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %}  
             {% if (states('sensor.uaqua_1').split(';')[20]=='???')  %}
-              --,- 
-            {% else %} {{(states('sensor.uaqua_1').split(';')[20] | float / 10)}} +/-{{(states('sensor.uaqua_1').split(';')[22] | float / 10)}} {% endif %}
+              --,- °C
+            {% else %} 
+              {{(states('sensor.uaqua_1').split(';')[20] | float / 10)}} +/- {{ (states('sensor.uaqua_1').split(';')[22] | float / 10) }} °C
+            {% endif %}
           {% else %} unknown {% endif %}
         {% else %}
             {{states('sensor.uaqua_1')}}
         {% endif %}
-      icon_template: 'hass:thermometer-alert' 
-      unit_of_measurement: " °C"
+      icon_template: 'mdi:thermometer-alert' 
 
     uaqua_1_temp_alarm_max_value:
       unique_id: 'microAQUA_1_temp_alarm_max_value'
       friendly_name: Alarm Temp. max. value
       value_template: >
-        {% if (states('sensor.uaqua_1')!= 'unknown') %}
-          {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %}  
-            {% if (states('sensor.uaqua_1').split(';')[21]=='???')  %}
-              --,- 
-            {% else %} {{(states('sensor.uaqua_1').split(';')[21] | float / 10)}} +/-{{(states('sensor.uaqua_1').split(';')[22] | float / 10)}} {% endif %}
-          {% else %} unknown {% endif %}
+        {% if states('sensor.uaqua_1') != 'unknown' %}
+          {% if states('sensor.uaqua_1_last_update')|int < 15 %}  
+            {% if states('sensor.uaqua_1').split(';')[21] == '???' %}
+              --,- °C
+            {% else %}
+              {{ (states('sensor.uaqua_1').split(';')[21] | float / 10) }} +/- {{ (states('sensor.uaqua_1').split(';')[22] | float / 10) }} °C
+            {% endif %}
+          {% else %}
+            unknown
+          {% endif %}
         {% else %}
-            {{states('sensor.uaqua_1')}}
+          {{ states('sensor.uaqua_1') }}
         {% endif %}
-      icon_template: 'hass:thermometer-alert' 
-      unit_of_measurement: " °C"
+      icon_template: 'mdi:thermometer-alert' 
+
 
     uaqua_1_ph_alarm_min_value:
       unique_id: 'microAQUA_1_pH_alarm_min_value'
@@ -420,14 +421,13 @@
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %}  
             {% if (states('sensor.uaqua_1').split(';')[23]=='???')  %}
-              -,-- 
-            {% else %} {{(states('sensor.uaqua_1').split(';')[23] | float / 100)}} +/-{{(states('sensor.uaqua_1').split(';')[25] | float / 100)}} {% endif %}
+              -,-- pH
+            {% else %} {{(states('sensor.uaqua_1').split(';')[23] | float / 100)}} +/-{{(states('sensor.uaqua_1').split(';')[25] | float / 100)}} pH {% endif %}
           {% else %} unknown {% endif %}
         {% else %}
             {{states('sensor.uaqua_1')}}
         {% endif %}
-      icon_template: 'hass:alert' 
-      unit_of_measurement: " pH"
+      icon_template: 'mdi:alert' 
 
     uaqua_1_ph_alarm_max_value:
       unique_id: 'microAQUA_1_pH_alarm_max_value'
@@ -436,14 +436,13 @@
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1_last_update')|int)<15 ) %}  
             {% if (states('sensor.uaqua_1').split(';')[24]=='???')  %}
-              -,-- 
-            {% else %} {{(states('sensor.uaqua_1').split(';')[24] | float / 100)}} +/-{{(states('sensor.uaqua_1').split(';')[25] | float / 100)}} {% endif %}
+              -,-- pH
+            {% else %} {{(states('sensor.uaqua_1').split(';')[24] | float / 100)}} +/-{{(states('sensor.uaqua_1').split(';')[25] | float / 100)}} pH {% endif %}
           {% else %} unknown {% endif %}
         {% else %}
             {{states('sensor.uaqua_1')}}
         {% endif %}
-      icon_template: 'hass:alert' 
-      unit_of_measurement: " pH"
+      icon_template: 'mdi:alert' 
 
     uaqua_1_time_stamp:
       unique_id: 'microAQUA_1_data_update_time_stamp'
@@ -454,7 +453,7 @@
         {% else %}
           {{states('sensor.uaqua_1')}}
         {% endif %}
-      icon_template: 'hass:clock' 
+      icon_template: 'mdi:clock' 
       
     uaqua_1_last_update:
       unique_id: 'microAQUA_1_last_changed'
@@ -464,7 +463,7 @@
     uaqua_1_no_reg_time:
       unique_id: 'microAQUA_1_no_reg_time'
       friendly_name: Czas bez regulacji
-      icon_template: 'hass:power-plug-off'
+      icon_template: 'mdi:power-plug-off'
       value_template: >
         {% if (states('sensor.uaqua_1')!= 'unknown') %}
           {% if ((states('sensor.uaqua_1').split(';')[17]) == '0') %}
