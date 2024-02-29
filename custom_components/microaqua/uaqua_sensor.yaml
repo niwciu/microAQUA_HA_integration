@@ -6,6 +6,7 @@
   timeout: 3
   scan_interval: 1
   value_template:  "{{ value.split('=')[1]}}"
+
   
 #---------------------------------------------------#
 #           microAQUA 2'nd DEVICE SECTION           #
