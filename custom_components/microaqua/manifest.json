@@ -5,7 +5,7 @@
     "dependencies": [],
     "codeowners": [],
     "requirements": [],
-    "version": "1.0",
+    "version": "1.0.0",
     "country": ["world"],
     "quality_scale": "gold",
     "issue_tracker": "https://github.com/niwciu/microAQUA_HA_integration",
