@@ -3,7 +3,7 @@
     "name": "microAQUA HA integration",
     "documentation": "https://github.com/niwciu/microAQUA_HA_integration",
     "dependencies": [],
-    "codeowners": [],
+    "codeowners": ["niwciu"],
     "requirements": [],
     "version": "1.0.1",
     "country": ["world"],
