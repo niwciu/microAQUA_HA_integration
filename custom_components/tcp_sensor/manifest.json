@@ -1,0 +1,10 @@
+{
+  "domain": "tcp_sensor",
+  "name": "TCP Sensor",
+  "documentation": "https://github.com/your-username/your-repo",
+  "requirements": [],
+  "dependencies": [],
+  "codeowners": ["@your-username"],
+  "version": "1.0.0",
+  "config_flow": true
+}
