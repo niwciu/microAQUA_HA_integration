@@ -1,0 +1,9 @@
+{
+  "name": "TCP Sensor",
+  "description": "A configurable TCP sensor for Home Assistant.",
+  "render_readme": true,
+  "domains": ["sensor"],
+  "homeassistant": "2023.1.0",
+  "country": ["us", "pl"],
+  "iot_class": "local_polling"
+}
