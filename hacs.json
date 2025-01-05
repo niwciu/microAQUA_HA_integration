@@ -1,6 +1,6 @@
 {
-  "name": "TCP Sensor",
-  "description": "A configurable TCP sensor for Home Assistant.",
+  "name": "microAQUA",
+  "description": "microAQUA device integration for Home Assistant.",
   "render_readme": true,
   "domains": ["sensor"],
   "homeassistant": "2023.1.0",

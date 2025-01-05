@@ -1,0 +1,10 @@
+{
+    "domain": "microaqua",
+    "name": "microAQUA",
+    "version": "1.0.0",
+    "documentation": "https://github.com/niwciu/microAQUA_HA_integration",
+    "requirements": [],
+    "dependencies": [],
+    "codeowners": ["@niwciu"],
+    "config_flow": true
+}
