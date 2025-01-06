@@ -1,7 +1,6 @@
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import CONF_IP_ADDRESS, CONF_PORT
 from homeassistant.helpers.entity import Entity
-from homeassistant.helpers.event import async_track_time_interval
 from .const import DOMAIN, TIMEOUT, SCAN_INTERVAL
 import socket
 import asyncio
@@ -49,8 +48,8 @@ class MicroAQUASensor(SensorEntity):
         self._led = [None] * 4
         self._error_count = 0  # Licznik błędów
 
-        # Start regular updates using SCAN_INTERVAL
-        async_track_time_interval(self._hass, self._update_sensor_data, SCAN_INTERVAL)
+        # # Start regular updates using SCAN_INTERVAL
+        # self._hass.helpers.event.async_track_time_interval(self._update_sensor_data, SCAN_INTERVAL)
 
     @property
     def name(self):
@@ -67,9 +66,10 @@ class MicroAQUASensor(SensorEntity):
         """Return a unique ID."""
         return f"microaqua_{self._ip}"
 
-    async def _update_sensor_data(self, now):
-        """Fetch and update data at a regular interval."""
-        await self.async_update()
+    # async def _update_sensor_data(self, now):
+    #     """Fetch and update data at a regular interval."""
+    #     # Wywołanie samego async_update() wystarczy - nie trzeba tego robić podwójnie
+    #     await self.async_update()
 
     async def async_update(self):
         """Fetch new state data from the device."""
