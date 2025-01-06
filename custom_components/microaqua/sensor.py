@@ -32,7 +32,7 @@ class MicroAQUASensor(SensorEntity):
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"MicroAQUA Sensor {self._ip}"
+        return f"MicroAQUA {self._ip}"
 
     @property
     def state(self):
@@ -42,7 +42,7 @@ class MicroAQUASensor(SensorEntity):
     @property
     def unique_id(self):
         """Return a unique ID."""
-        return f"microaqua_{self._ip}_{self._port}"
+        return f"microaqua_{self._ip}"
 
     async def async_update(self):
         """Fetch new state data from the device."""

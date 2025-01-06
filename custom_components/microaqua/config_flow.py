@@ -1,6 +1,6 @@
 from homeassistant import config_entries
 import voluptuous as vol
-from .const import DOMAIN, DEFAULT_PORT, DEFAULT_PAYLOAD
+from .const import DOMAIN, DEFAULT_PORT, DEFAULT_PAYLOAD, TIMEOUT
 
 class MicroAQUAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for MicroAQUA."""
@@ -31,7 +31,7 @@ class MicroAQUAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         import socket
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(2)
+            sock.settimeout(TIMEOUT)
             await asyncio.get_event_loop().run_in_executor(
                 None, sock.connect, (user_input["ip"], user_input["port"])
             )
