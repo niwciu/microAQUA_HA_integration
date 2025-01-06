@@ -157,17 +157,17 @@ class MicroAQUASensor(SensorEntity):
 class PHSensor(Entity):
     """Representation of pH value from TCP Sensor."""
 
-    def __init__(self, tcp_sensor):
-        self._tcp_sensor = tcp_sensor
+    def __init__(self, sensor):
+        self._sensor = sensor
         self._unit_of_measurement = "pH"
 
     @property
     def name(self):
-        return f"{self._tcp_sensor.name} pH"
+        return f"{self._sensor.name} pH"
 
     @property
     def state(self):
-        return self._tcp_sensor._ph_value
+        return self._sensor._ph_value
 
     @property
     def icon(self):
@@ -176,23 +176,28 @@ class PHSensor(Entity):
     @property
     def unit_of_measurement(self):
         return self._unit_of_measurement
+    
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        return f"{self._sensor.name}_ph"
 
 
 class TempSensor(Entity):
     """Representation of a temperature value from TCP Sensor."""
 
-    def __init__(self, tcp_sensor, index):
-        self._tcp_sensor = tcp_sensor
+    def __init__(self, sensor, index):
+        self._sensor = sensor
         self._index = index
         self._unit_of_measurement = "°C"
 
     @property
     def name(self):
-        return f"{self._tcp_sensor.name} Temp {self._index}"
+        return f"{self._sensor.name} Temp {self._index}"
 
     @property
     def state(self):
-        return self._tcp_sensor._temp_values[self._index - 1]
+        return self._sensor._temp_values[self._index - 1]
 
     @property
     def icon(self):
@@ -201,28 +206,37 @@ class TempSensor(Entity):
     @property
     def unit_of_measurement(self):
         return self._unit_of_measurement
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        return f"{self._sensor.name}_tem_{self._index}"
 
 
 class LED(Entity):
     """Representation of a LED value from TCP Sensor."""
 
-    def __init__(self, tcp_sensor, index):
-        self._tcp_sensor = tcp_sensor
+    def __init__(self, sensor, index):
+        self._sensor = sensor
         self._index = index
         self._unit_of_measurement = "%"
 
     @property
     def name(self):
-        return f"{self._tcp_sensor.name} LED {self._index}"
+        return f"{self._sensor.name} LED {self._index}"
 
     @property
     def state(self):
-        return self._tcp_sensor._led[self._index - 1]
+        return self._sensor._led[self._index - 1]
 
     @property
     def icon(self):
-        return "mdi:led"
+        return "mdi:led-on"
 
     @property
     def unit_of_measurement(self):
         return self._unit_of_measurement
+    
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        return f"{self._sensor.name}_led_{self._index}"
