@@ -3,7 +3,7 @@
   "description": "microAQUA device integration for Home Assistant.",
   "content_in_root": false,
   "render_readme": true,
-  "domains": ["sensor"], // switch ,light, etc ->include all domains
+  "domains": ["sensor"],
   "homeassistant": "2023.1.0",
   "iot_class": "local_polling",
   "filename": "custom_components/microaqua/manifest.json" 
