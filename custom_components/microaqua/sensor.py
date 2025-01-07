@@ -48,13 +48,18 @@ class MicroAQUASensor(SensorEntity):
         self._led = [None] * 4
         self._error_count = 0  # Licznik błędów
 
-        # # Start regular updates using SCAN_INTERVAL
-        # self._hass.helpers.event.async_track_time_interval(self._update_sensor_data, SCAN_INTERVAL)
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, self._ip)},  # Identifiers umożliwiają automatyczną rejestrację urządzenia
+            "name": f"microAQUA {self._ip} {self._port}",
+            "manufacturer": "microAQUA",
+            "model": "microAQUA"
+        }
+        # self.entity_id = generate_entity_id("sensor.{}", "my_awesome_sensor_id")
 
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"MicroAQUA {self._ip}"
+        return f"microAQUA"
 
     @property
     def state(self):
@@ -64,15 +69,14 @@ class MicroAQUASensor(SensorEntity):
     @property
     def unique_id(self):
         """Return a unique ID."""
-        return f"microaqua_{self._ip}"
-
-    # async def _update_sensor_data(self, now):
-    #     """Fetch and update data at a regular interval."""
-    #     # Wywołanie samego async_update() wystarczy - nie trzeba tego robić podwójnie
-    #     await self.async_update()
+        return f"{DOMAIN}_{self._ip}"
 
     async def async_update(self):
         """Fetch new state data from the device."""
+            # Sprawdzenie, czy entity_id jest ustawione
+        if not self.entity_id:
+            _LOGGER.debug("Entity ID is not set. Skipping update.")
+            return
         try:
             data = await self._fetch_data()
             valid_data = self._validate_response(data)
