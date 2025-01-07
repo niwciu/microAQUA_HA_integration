@@ -1,6 +1,6 @@
 from homeassistant import config_entries
 import voluptuous as vol
-from .const import DOMAIN, DEFAULT_PORT, DEFAULT_PAYLOAD, TIMEOUT
+from .const import DOMAIN, DEFAULT_PORT, DEFAULT_PAYLOAD, TIMEOUT, DEFAULT_NAME
 
 class MicroAQUAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for MicroAQUA."""
@@ -18,6 +18,7 @@ class MicroAQUAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
 
         data_schema = vol.Schema({
+            vol.Optional("name", default=DEFAULT_NAME): str,
             vol.Required("ip"): str,
             vol.Optional("port", default=DEFAULT_PORT): int,
             vol.Optional("payload", default=DEFAULT_PAYLOAD): str,

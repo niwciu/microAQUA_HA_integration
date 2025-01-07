@@ -13,9 +13,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     ip = config_entry.data["ip"]
     port = config_entry.data["port"]
     payload = config_entry.data["payload"]
+    name = config_entry.data["name"]
 
     # Tworzenie głównego sensora
-    sensor = MicroAQUASensor(hass, ip, port, payload)
+    sensor = MicroAQUASensor(hass, ip, port, payload, name)
     async_add_entities(
         [
             sensor,
@@ -35,9 +36,10 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class MicroAQUASensor(SensorEntity):
     """Representation of a MicroAQUA sensor."""
 
-    def __init__(self, hass, ip, port, payload):
+    def __init__(self, hass, ip, port, payload, name):
         """Initialize the sensor."""
         self._hass = hass
+        self._name = name
         self._ip = ip
         self._port = port
         self._payload = f"AT+{payload}\r\n"
@@ -50,7 +52,7 @@ class MicroAQUASensor(SensorEntity):
 
         self._attr_device_info = {
             "identifiers": {(DOMAIN, self._ip)},  # Identifiers umożliwiają automatyczną rejestrację urządzenia
-            "name": f"microAQUA {self._ip} {self._port}",
+            "name": f"{self._name} {self._ip} {self._port}",
             "manufacturer": "microAQUA",
             "model": "microAQUA"
         }
@@ -59,7 +61,7 @@ class MicroAQUASensor(SensorEntity):
     @property
     def name(self):
         """Return the name of the sensor."""
-        return f"microAQUA"
+        return self._name
 
     @property
     def state(self):
@@ -69,7 +71,7 @@ class MicroAQUASensor(SensorEntity):
     @property
     def unique_id(self):
         """Return a unique ID."""
-        return f"{DOMAIN}_{self._ip}"
+        return f"{self._name}_{self._ip}"
 
     async def async_update(self):
         """Fetch new state data from the device."""
