@@ -22,15 +22,18 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
         [
             sensor,
             PHSensor(sensor),
-            TempSensor(sensor, 1),
-            TempSensor(sensor, 2),
-            TempSensor(sensor, 3),
-            TempSensor(sensor, 4),
+            TempSensor(sensor, "Temp 1", 1),
+            TempSensor(sensor, "Temp 2", 2),
+            TempSensor(sensor, "Temp 3", 3),
+            TempSensor(sensor, "Temp 4", 4),
             LED(sensor, 1),
             LED(sensor, 2),
             LED(sensor, 3),
             LED(sensor, 4),
             LastUpdateTime(sensor),
+            TempSensor(sensor, "Alarm Temp min", 5, "mdi:thermometer-alert"),
+            TempSensor(sensor, "Alarm Temp max", 6, "mdi:thermometer-alert"),
+            TempSensor(sensor, "Alam Temp histeresis", 7, "mdi:thermometer-alert"),
         ],
         True,
     )
@@ -48,10 +51,29 @@ class MicroAQUASensor(SensorEntity):
         self._expected_prefix = f"AT+{payload}="
         self._state = None
         self._ph_value = None
-        self._temp_values = [None] * 4
+        self._temp_values = [None] * 7
         self._led = [None] * 4
         self._last_update_time = None
         self._error_count = 0  # Licznik błędów
+        # ToDo
+        # self._fan_driver_mode # parsed_data[5]
+        # self._fan_speed # parsed_data[6]
+        # self._thermoreg_asssigned_socket # parsed_data[7]
+        # self._thermoreg_socket_state # parsed_data[8]
+        # self._ph_mether_asssigned_CO2_socket # parsed_data[9]
+        # self._ph_mether_CO2_socket_state # parsed_data[10]
+        # self._ph_mether_asssigned_O2_socket # parsed_data[11]
+        # self._ph_mether_O2_socket_state # parsed_data[12]
+        # self._regulation_off_marker # parsed_data[17]
+        # self._alarm_temp_histeresis # parsed_data[22]
+        # self._alarm_ph_min # parsed_data[23]
+        # self._alarm_ph_max # parsed_data[24]
+        # self._alarm_ph_histeresis # parsed_data[25] 
+        # Done
+        # self._alarm_register # parsed_data[18]
+        # self._alarm_temp_min # parsed_data[20]
+        # self._alarm_temp_max # parsed_data[21]
+
 
         self._attr_device_info = {
             "identifiers": {(DOMAIN, self._ip)},  # Identifiers umożliwiają automatyczną rejestrację urządzenia
@@ -90,7 +112,7 @@ class MicroAQUASensor(SensorEntity):
                 # Parsowanie danych na różne encje
                 parsed_data = valid_data.split(";")
                 self._ph_value = self._parse_ph(parsed_data[0])  # pH
-                self._temp_values = [self._parse_temp(temp) for temp in parsed_data[1:5]]  # Temperatury
+                self._temp_values = [self._parse_temp(temp) for temp in parsed_data[1:5]+ parsed_data[20:23]]  # Temperatury
                 self._led = [self._parse_led(led) for led in parsed_data[13:17]]  # LEDy
                 self._last_update_time = self._parse_time_stamp(parsed_data[19])  # LAst Update Time
 
@@ -207,14 +229,16 @@ class PHSensor(Entity):
 class TempSensor(Entity):
     """Representation of a temperature value from microAQUA Sensor."""
 
-    def __init__(self, sensor, index):
+    def __init__(self, sensor, name, index, icon="mdi:thermometer"):
         self._sensor = sensor
         self._index = index
         self._unit_of_measurement = "°C"
+        self._name = name
+        self._icon = icon
 
     @property
     def name(self):
-        return f"{self._sensor.name} Temp {self._index}"
+        return f"{self._sensor.name} {self._name}"
 
     @property
     def state(self):
@@ -222,7 +246,7 @@ class TempSensor(Entity):
 
     @property
     def icon(self):
-        return "mdi:thermometer"
+        return self._icon
 
     @property
     def unit_of_measurement(self):
@@ -230,7 +254,7 @@ class TempSensor(Entity):
     @property
     def unique_id(self):
         """Return a unique ID."""
-        return f"{self._sensor.name}_tem_{self._index}"
+        return f"{self._sensor.name}_{self._name}"
 
 
 class LED(Entity):
