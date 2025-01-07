@@ -1,6 +1,7 @@
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import CONF_IP_ADDRESS, CONF_PORT
 from homeassistant.helpers.entity import Entity
+from datetime import datetime
 from .const import DOMAIN, TIMEOUT, SCAN_INTERVAL
 import socket
 import asyncio
@@ -29,6 +30,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             LED(sensor, 2),
             LED(sensor, 3),
             LED(sensor, 4),
+            LastUpdateTime(sensor),
         ],
         True,
     )
@@ -48,6 +50,7 @@ class MicroAQUASensor(SensorEntity):
         self._ph_value = None
         self._temp_values = [None] * 4
         self._led = [None] * 4
+        self._last_update_time = None
         self._error_count = 0  # Licznik błędów
 
         self._attr_device_info = {
@@ -89,6 +92,7 @@ class MicroAQUASensor(SensorEntity):
                 self._ph_value = self._parse_ph(parsed_data[0])  # pH
                 self._temp_values = [self._parse_temp(temp) for temp in parsed_data[1:5]]  # Temperatury
                 self._led = [self._parse_led(led) for led in parsed_data[13:17]]  # LEDy
+                self._last_update_time = self._parse_time_stamp(parsed_data[19])  # LAst Update Time
 
                 self._state = "updated"  # Stan sensora aktualny
                 self._error_count = 0  # Zresetuj licznik błędów po poprawnej odpowiedzi
@@ -156,12 +160,23 @@ class MicroAQUASensor(SensorEntity):
             return int(value)
         except ValueError:
             return "unknown"
+        
+    def _parse_time_stamp(self, value):
+        """Parse time_stamp value."""
+        try:
+            # Convert to datetime object
+            time_obj = datetime.strptime(value, "%H:%M:%S")
+            return time_obj.time()
+        except ValueError:
+            return "unknown"
+        
+        
 
 
 # Klasy dla sensora pH, temperatury i LED
 
 class PHSensor(Entity):
-    """Representation of pH value from TCP Sensor."""
+    """Representation of pH value from microAQUA Sensor."""
 
     def __init__(self, sensor):
         self._sensor = sensor
@@ -190,7 +205,7 @@ class PHSensor(Entity):
 
 
 class TempSensor(Entity):
-    """Representation of a temperature value from TCP Sensor."""
+    """Representation of a temperature value from microAQUA Sensor."""
 
     def __init__(self, sensor, index):
         self._sensor = sensor
@@ -219,7 +234,7 @@ class TempSensor(Entity):
 
 
 class LED(Entity):
-    """Representation of a LED value from TCP Sensor."""
+    """Representation of a LED value from microAQUA Sensor."""
 
     def __init__(self, sensor, index):
         self._sensor = sensor
@@ -246,3 +261,27 @@ class LED(Entity):
     def unique_id(self):
         """Return a unique ID."""
         return f"{self._sensor.name}_led_{self._index}"
+    
+class LastUpdateTime(Entity):
+    """Representation of LastUpdateTime value from microAQUA Sensor."""
+
+    def __init__(self, sensor):
+        self._sensor = sensor
+        
+
+    @property
+    def name(self):
+        return f"{self._sensor.name} Last Update Time"
+
+    @property
+    def state(self):
+        return self._sensor._last_update_time
+
+    @property
+    def icon(self):
+        return "mdi:update"
+    
+    @property
+    def unique_id(self):
+        """Return a unique ID."""
+        return f"{self._sensor.name}_last_update_time"
