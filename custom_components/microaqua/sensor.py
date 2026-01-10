@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 import socket
-from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
@@ -15,7 +14,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
-    """Set up the sensor from a config entry."""
+    """Set up the sensor platform from a config entry."""
     ip = config_entry.data["ip"]
     port = config_entry.data["port"]
     payload = config_entry.data["payload"]
@@ -23,11 +22,16 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
     master = MicroAQUASensor(hass, ip, port, payload, name)
 
+    # Udostępnij mastera innym platformom (button/number) przez hass.data
+    hass.data.setdefault(DOMAIN, {})
+    hass.data[DOMAIN].setdefault(config_entry.entry_id, {})
+    hass.data[DOMAIN][config_entry.entry_id]["master"] = master
+
     async_add_entities(
         [
             master,
 
-            # --- podstawowe (jak u Ciebie) ---
+            # --- podstawowe ---
             PHSensor(master),
             TempSensor(master, "Temp 1", 1),
             TempSensor(master, "Temp 2", 2),
@@ -39,29 +43,29 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             LED(master, 4),
             LastUpdateTime(master),
 
-            # --- progi temperatury (u Ciebie były jako temp_values[5..7]) ---
+            # --- progi temperatury (20..22 z payloadu) ---
             TempSensor(master, "Alarm Temp min", 5, "mdi:thermometer-alert"),
             TempSensor(master, "Alarm Temp max", 6, "mdi:thermometer-alert"),
             TempSensor(master, "Alarm Temp histeresis", 7, "mdi:thermometer-alert"),
 
-            # --- brakujące z komentarza / YAML ---
-            NoRegTime(master),                 # parsed_data[17]
-            FanController(master),             # parsed_data[5], [6], [17]
-            ThermoregSocket(master),           # parsed_data[7], [8], [17]
-            CO2Socket(master),                 # parsed_data[9], [10], [17]
-            O2Socket(master),                  # parsed_data[11], [12], [17]
+            # --- statusy jak z YAML ---
+            NoRegTime(master),          # [17]
+            FanController(master),      # [5], [6], [17]
+            ThermoregSocket(master),    # [7], [8], [17]
+            CO2Socket(master),          # [9], [10], [17]
+            O2Socket(master),           # [11], [12], [17]
 
-            TempAlarms(master),                # parsed_data[18]
-            PhAlarms(master),                  # parsed_data[18]
-            AcousticAlarmStatus(master),        # parsed_data[18]
+            TempAlarms(master),         # [18]
+            PhAlarms(master),           # [18]
+            AcousticAlarmStatus(master),# [18]
 
-            AlarmPhMinValue(master),            # parsed_data[23] (+ histereza[25] jako atrybut)
-            AlarmPhMaxValue(master),            # parsed_data[24] (+ histereza[25] jako atrybut)
-            AlarmPhHysteresis(master),          # parsed_data[25]
+            AlarmPhMinValue(master),    # [23]
+            AlarmPhMaxValue(master),    # [24]
+            AlarmPhHysteresis(master),  # [25]
 
-            # (opcjonalnie) surowe wartości (jeśli chcesz je widzieć jako liczby)
-            FanDriverModeRaw(master),           # parsed_data[5]
-            FanSpeedRaw(master),                # parsed_data[6]
+            # --- debug / raw ---
+            FanDriverModeRaw(master),   # [5]
+            FanSpeedRaw(master),        # [6]
         ],
         True,
     )
@@ -83,13 +87,17 @@ class MicroAQUASensor(SensorEntity):
         self._state: Optional[str] = None
         self._error_count = 0
 
+        # Value used by number.py (No regulation time set, minutes)
+        # button.py should use this to send AT+TCPENRM;<minutes>
+        self._no_reg_set_minutes: int = 0
+
         # podstawowe
         self._ph_value = None
         self._temp_values = [None] * 7
         self._led = [None] * 4
         self._last_update_time = None
 
-        # brakujące / dodatkowe (zgodnie z YAML)
+        # dodatkowe / YAML-like
         self._fan_driver_mode = None              # [5]
         self._fan_speed = None                    # [6]
         self._thermoreg_assigned_socket = None    # [7]
@@ -98,7 +106,7 @@ class MicroAQUASensor(SensorEntity):
         self._ph_meter_co2_socket_state = None    # [10]
         self._ph_meter_assigned_o2_socket = None  # [11]
         self._ph_meter_o2_socket_state = None     # [12]
-        self._regulation_off_marker = None        # [17] (w YAML jako "czas bez regulacji")
+        self._regulation_off_marker = None        # [17]
         self._alarm_register = None               # [18]
         self._alarm_temp_hysteresis = None        # [22]
         self._alarm_ph_min = None                 # [23]
@@ -126,7 +134,7 @@ class MicroAQUASensor(SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        """Wrzucamy wartości informacyjne jako atrybuty (mniej encji, a dane są dostępne)."""
+        """Informacyjne atrybuty (nie muszą być osobnymi encjami)."""
         return {
             "alarm_temp_min_c": self._temp_values[4],
             "alarm_temp_max_c": self._temp_values[5],
@@ -141,7 +149,23 @@ class MicroAQUASensor(SensorEntity):
             "o2_assigned_socket": self._ph_meter_assigned_o2_socket,
             "regulation_off_marker_min": self._regulation_off_marker,
             "alarm_register": self._alarm_register,
+            "no_reg_set_minutes": self._no_reg_set_minutes,
         }
+
+    async def async_send_command(self, command: str) -> None:
+        """Send a raw command to device (adds CRLF). Used by button.py."""
+        loop = asyncio.get_event_loop()
+        msg = f"{command}\r\n"
+
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.settimeout(TIMEOUT)
+            await loop.run_in_executor(None, sock.connect, (self._ip, self._port))
+            await loop.run_in_executor(None, sock.sendall, msg.encode("utf-8"))
+            # Nie zawsze jest odpowiedź, ale spróbuj odebrać żeby domknąć połączenie
+            try:
+                await loop.run_in_executor(None, sock.recv, 1024)
+            except Exception:
+                pass
 
     async def async_update(self):
         if not self.entity_id:
@@ -159,35 +183,38 @@ class MicroAQUASensor(SensorEntity):
 
             parsed = valid_data.split(";")
 
+            # Bezpieczny getter (żeby nie wywalić integracji gdy payload jest krótszy)
+            def g(idx: int) -> str:
+                return parsed[idx] if idx < len(parsed) else "???"
+
             # --- podstawowe ---
-            self._ph_value = self._parse_ph(parsed[0])
-            self._temp_values = [
-                self._parse_temp(v) for v in (parsed[1:5] + parsed[20:23])
-            ]
-            self._led = [self._parse_led(v) for v in parsed[13:17]]
-            self._last_update_time = self._parse_time_stamp(parsed[19])
+            self._ph_value = self._parse_ph(g(0))
+            temps_part = [g(i) for i in [1, 2, 3, 4, 20, 21, 22]]
+            self._temp_values = [self._parse_temp(v) for v in temps_part]
 
-            # --- brakujące / YAML ---
-            self._fan_driver_mode = self._parse_int(parsed[5])
-            self._fan_speed = self._parse_int(parsed[6])
+            self._led = [self._parse_led(g(i)) for i in [13, 14, 15, 16]]
+            self._last_update_time = self._parse_time_stamp(g(19))
 
-            self._thermoreg_assigned_socket = self._parse_int(parsed[7])
-            self._thermoreg_socket_state = self._parse_int(parsed[8])
+            # --- dodatkowe ---
+            self._fan_driver_mode = self._parse_int(g(5))
+            self._fan_speed = self._parse_int(g(6))
 
-            self._ph_meter_assigned_co2_socket = self._parse_int(parsed[9])
-            self._ph_meter_co2_socket_state = self._parse_int(parsed[10])
+            self._thermoreg_assigned_socket = self._parse_int(g(7))
+            self._thermoreg_socket_state = self._parse_int(g(8))
 
-            self._ph_meter_assigned_o2_socket = self._parse_int(parsed[11])
-            self._ph_meter_o2_socket_state = self._parse_int(parsed[12])
+            self._ph_meter_assigned_co2_socket = self._parse_int(g(9))
+            self._ph_meter_co2_socket_state = self._parse_int(g(10))
 
-            self._regulation_off_marker = self._parse_int(parsed[17])  # min
+            self._ph_meter_assigned_o2_socket = self._parse_int(g(11))
+            self._ph_meter_o2_socket_state = self._parse_int(g(12))
 
-            self._alarm_register = self._parse_int(parsed[18])
+            self._regulation_off_marker = self._parse_int(g(17))
+            self._alarm_register = self._parse_int(g(18))
 
-            self._alarm_temp_hysteresis = self._parse_temp(parsed[22])  # też masz w temp_values[6]
-            self._alarm_ph_min = self._parse_ph(parsed[23])
-            self._alarm_ph_max = self._parse_ph(parsed[24])
-            self._alarm_ph_hysteresis = self._parse_ph(parsed[25])
+            self._alarm_temp_hysteresis = self._parse_temp(g(22))
+            self._alarm_ph_min = self._parse_ph(g(23))
+            self._alarm_ph_max = self._parse_ph(g(24))
+            self._alarm_ph_hysteresis = self._parse_ph(g(25))
 
             self._state = "updated"
             self._error_count = 0
@@ -272,7 +299,7 @@ class MicroAQUASensor(SensorEntity):
 # ---------------------- BASE CHILD ENTITY ----------------------
 
 class MicroAQUAChildSensor(SensorEntity):
-    """Base class: attaches to device + uses master unique_id prefix."""
+    """Base class: attaches to device + uses master reference."""
 
     def __init__(self, master: MicroAQUASensor):
         self._m = master
@@ -282,12 +309,11 @@ class MicroAQUAChildSensor(SensorEntity):
         return self._m.device_info
 
 
-# ---------------------- BASIC SENSORS (pH/temp/led/time) ----------------------
+# ---------------------- BASIC SENSORS ----------------------
 
 class PHSensor(MicroAQUAChildSensor):
     def __init__(self, master: MicroAQUASensor):
         super().__init__(master)
-        self._unit = "pH"
 
     @property
     def name(self):
@@ -299,7 +325,7 @@ class PHSensor(MicroAQUAChildSensor):
 
     @property
     def unit_of_measurement(self):
-        return self._unit
+        return "pH"
 
     @property
     def icon(self):
@@ -316,7 +342,6 @@ class TempSensor(MicroAQUAChildSensor):
         self._index = index
         self._name = name
         self._icon = icon
-        self._unit = "°C"
 
     @property
     def name(self):
@@ -328,7 +353,7 @@ class TempSensor(MicroAQUAChildSensor):
 
     @property
     def unit_of_measurement(self):
-        return self._unit
+        return "°C"
 
     @property
     def icon(self):
@@ -394,7 +419,6 @@ class NoRegTime(MicroAQUAChildSensor):
 
     @property
     def state(self):
-        # YAML: jeśli 0 -> "--", inaczej "{x}min"
         v = self._m._regulation_off_marker
         if v is None:
             return None
@@ -411,7 +435,7 @@ class NoRegTime(MicroAQUAChildSensor):
 
 def _socket_state_text(assigned: Optional[int], state: Optional[int], reg_off: Optional[int]) -> str | None:
     """
-    Odtwarza logikę z YAML:
+    Logika zgodna z YAML:
     - jeśli reg_off != 0 => off
     - jeśli assigned == 7 => brak przypisanego gniazda
     - else state: 0->off, 1->on
@@ -514,16 +538,12 @@ class FanController(MicroAQUAChildSensor):
         if reg_off != 0:
             return "off"
 
-        # YAML mapping:
-        # mode == 3 => Moduł FAN wyłączony
         if mode == 3:
             return "Moduł FAN wyłączony"
 
-        # mode == 2 => Praca okresowa: Stan OFF/ON zależnie od speed
         if mode == 2:
             return "Praca okresowa: Stan ON" if speed != 0 else "Praca okresowa: Stan OFF"
 
-        # mode == 1 => Regulacja mocy: speed map
         if mode == 1:
             power_map = {
                 1: "Regulacja mocy: Rozruch",
@@ -535,7 +555,6 @@ class FanController(MicroAQUAChildSensor):
             }
             return power_map.get(speed, "Regulacja mocy: OFF")
 
-        # else => Praca ON/OFF: zależnie od speed
         return "Praca ON/OFF: Stan ON" if speed != 0 else "Praca ON/OFF: Stan OFF"
 
     @property
@@ -556,8 +575,6 @@ def _bit_is_set(value: Optional[int], bitmask: int) -> bool:
 
 
 class TempAlarms(MicroAQUAChildSensor):
-    """Tekst jak w YAML: uaqua_1_temp_alarms (bazuje na alarm_register)"""
-
     @property
     def name(self):
         return f"{self._m.name} Temp alarms"
@@ -570,11 +587,9 @@ class TempAlarms(MicroAQUAChildSensor):
 
         muted = _bit_is_set(ar, 128)
 
-        # bit 1 => Temp MIN
         if _bit_is_set(ar, 1):
             return "ALARM Temp MIN wyciszony" if muted else "ALARM Temp MIN"
 
-        # bit 2 => Temp MAX
         if _bit_is_set(ar, 2):
             return "ALARM Temp MAX wyciszony" if muted else "ALARM Temp MAX"
 
@@ -590,8 +605,6 @@ class TempAlarms(MicroAQUAChildSensor):
 
 
 class PhAlarms(MicroAQUAChildSensor):
-    """Tekst jak w YAML: uaqua_1_ph_alarms"""
-
     @property
     def name(self):
         return f"{self._m.name} pH alarms"
@@ -604,11 +617,9 @@ class PhAlarms(MicroAQUAChildSensor):
 
         muted = _bit_is_set(ar, 128)
 
-        # bit 4 => pH MIN
         if _bit_is_set(ar, 4):
             return "ALARM pH MIN wyciszony" if muted else "ALARM pH MIN"
 
-        # bit 8 => pH MAX
         if _bit_is_set(ar, 8):
             return "ALARM pH MAX wyciszony" if muted else "ALARM pH MAX"
 
@@ -624,8 +635,6 @@ class PhAlarms(MicroAQUAChildSensor):
 
 
 class AcousticAlarmStatus(MicroAQUAChildSensor):
-    """ON/OFF jak w YAML: uaqua_1_acustic_alarm"""
-
     @property
     def name(self):
         return f"{self._m.name} Acoustic alarm"
@@ -636,7 +645,6 @@ class AcousticAlarmStatus(MicroAQUAChildSensor):
         if ar is None:
             return None
 
-        # YAML: jeśli (ar & 127) != 0 i (ar & 128) == 0 => ON
         if (ar & 127) != 0:
             return "OFF" if _bit_is_set(ar, 128) else "ON"
         return "OFF"
