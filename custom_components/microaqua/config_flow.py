@@ -1,9 +1,16 @@
-from homeassistant import config_entries
+import asyncio
+import socket
+
 import voluptuous as vol
-from .const import DOMAIN, DEFAULT_PORT, DEFAULT_PAYLOAD, TIMEOUT, DEFAULT_NAME
+from homeassistant import config_entries
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT
+
+from .const import CONF_PAYLOAD, DEFAULT_NAME, DEFAULT_PAYLOAD, DEFAULT_PORT, DOMAIN, TIMEOUT
+
 
 class MicroAQUAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for MicroAQUA."""
+    VERSION = 2
 
     async def async_step_user(self, user_input=None):
         """Handle the initial step."""
@@ -13,26 +20,27 @@ class MicroAQUAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             try:
                 # Validate the user input (e.g., check connection to device)
                 await self._test_connection(user_input)
-                return self.async_create_entry(title=user_input["ip"], data=user_input)
-            except Exception:
+                self._async_abort_entries_match({CONF_HOST: user_input[CONF_HOST]})
+                return self.async_create_entry(
+                    title=f"{user_input[CONF_NAME]} ({user_input[CONF_HOST]})",
+                    data=user_input,
+                )
+            except (OSError, asyncio.TimeoutError):
                 errors["base"] = "cannot_connect"
 
         data_schema = vol.Schema({
-            vol.Optional("name", default=DEFAULT_NAME): str,
-            vol.Required("ip"): str,
-            vol.Optional("port", default=DEFAULT_PORT): int,
-            vol.Optional("payload", default=DEFAULT_PAYLOAD): str,
+            vol.Optional(CONF_NAME, default=DEFAULT_NAME): str,
+            vol.Required(CONF_HOST): str,
+            vol.Optional(CONF_PORT, default=DEFAULT_PORT): int,
+            vol.Optional(CONF_PAYLOAD, default=DEFAULT_PAYLOAD): str,
         })
 
         return self.async_show_form(step_id="user", data_schema=data_schema, errors=errors)
 
     async def _test_connection(self, user_input):
         """Test if we can connect to the device."""
-        import asyncio
-        import socket
-
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(TIMEOUT)
-            await asyncio.get_event_loop().run_in_executor(
-                None, sock.connect, (user_input["ip"], user_input["port"])
-            )
+        await asyncio.to_thread(
+            socket.create_connection,
+            (user_input[CONF_HOST], user_input[CONF_PORT]),
+            TIMEOUT,
+        )

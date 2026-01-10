@@ -1,311 +1,301 @@
-from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import CONF_IP_ADDRESS, CONF_PORT
-from homeassistant.helpers.entity import Entity
-from datetime import datetime
-from .const import DOMAIN, TIMEOUT, SCAN_INTERVAL
-import socket
+"""Sensor platform for microAQUA."""
+from __future__ import annotations
+
 import asyncio
+from dataclasses import dataclass
+from datetime import time
 import logging
+import socket
+from typing import Final
+
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT, UnitOfTemperature
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity,
+    DataUpdateCoordinator,
+    UpdateFailed,
+)
+
+from .const import (
+    CONF_PAYLOAD,
+    DEFAULT_NAME,
+    DEFAULT_PAYLOAD,
+    DEFAULT_PORT,
+    DOMAIN,
+    SCAN_INTERVAL,
+    TIMEOUT,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
-    """Set up the sensor from a config entry."""
-    ip = config_entry.data["ip"]
-    port = config_entry.data["port"]
-    payload = config_entry.data["payload"]
-    name = config_entry.data["name"]
 
-    # Tworzenie głównego sensora
-    sensor = MicroAQUASensor(hass, ip, port, payload, name)
-    async_add_entities(
-        [
-            sensor,
-            PHSensor(sensor),
-            TempSensor(sensor, "Temp 1", 1),
-            TempSensor(sensor, "Temp 2", 2),
-            TempSensor(sensor, "Temp 3", 3),
-            TempSensor(sensor, "Temp 4", 4),
-            LED(sensor, 1),
-            LED(sensor, 2),
-            LED(sensor, 3),
-            LED(sensor, 4),
-            LastUpdateTime(sensor),
-            TempSensor(sensor, "Alarm Temp min", 5, "mdi:thermometer-alert"),
-            TempSensor(sensor, "Alarm Temp max", 6, "mdi:thermometer-alert"),
-            TempSensor(sensor, "Alam Temp histeresis", 7, "mdi:thermometer-alert"),
-        ],
-        True,
-    )
+@dataclass(frozen=True)
+class MicroAQUAData:
+    """Parsed data from the microAQUA controller."""
 
-class MicroAQUASensor(SensorEntity):
-    """Representation of a MicroAQUA sensor."""
+    ph: float | None
+    temperatures: tuple[float | None, ...]
+    leds: tuple[int | None, ...]
+    last_update_time: str | None
 
-    def __init__(self, hass, ip, port, payload, name):
-        """Initialize the sensor."""
-        self._hass = hass
-        self._name = name
-        self._ip = ip
+
+class MicroAQUADataUpdateCoordinator(DataUpdateCoordinator[MicroAQUAData]):
+    """Fetch data from a microAQUA controller."""
+
+    def __init__(
+        self, hass: HomeAssistant, host: str, port: int, payload: str
+    ) -> None:
+        super().__init__(
+            hass,
+            _LOGGER,
+            name=DOMAIN,
+            update_interval=SCAN_INTERVAL,
+        )
+        self._host = host
         self._port = port
         self._payload = f"AT+{payload}\r\n"
         self._expected_prefix = f"AT+{payload}="
-        self._state = None
-        self._ph_value = None
-        self._temp_values = [None] * 7
-        self._led = [None] * 4
-        self._last_update_time = None
-        self._error_count = 0  # Licznik błędów
-        # ToDo
-        # self._fan_driver_mode # parsed_data[5]
-        # self._fan_speed # parsed_data[6]
-        # self._thermoreg_asssigned_socket # parsed_data[7]
-        # self._thermoreg_socket_state # parsed_data[8]
-        # self._ph_mether_asssigned_CO2_socket # parsed_data[9]
-        # self._ph_mether_CO2_socket_state # parsed_data[10]
-        # self._ph_mether_asssigned_O2_socket # parsed_data[11]
-        # self._ph_mether_O2_socket_state # parsed_data[12]
-        # self._regulation_off_marker # parsed_data[17]
-        # self._alarm_temp_histeresis # parsed_data[22]
-        # self._alarm_ph_min # parsed_data[23]
-        # self._alarm_ph_max # parsed_data[24]
-        # self._alarm_ph_histeresis # parsed_data[25] 
-        # Done
-        # self._alarm_register # parsed_data[18]
-        # self._alarm_temp_min # parsed_data[20]
-        # self._alarm_temp_max # parsed_data[21]
+
+    async def _async_update_data(self) -> MicroAQUAData:
+        try:
+            raw = await asyncio.to_thread(self._fetch_data)
+            return self._parse_payload(raw)
+        except (OSError, asyncio.TimeoutError, ValueError) as err:
+            raise UpdateFailed(f"Unable to fetch data from {self._host}") from err
+
+    def _fetch_data(self) -> str:
+        with socket.create_connection((self._host, self._port), timeout=TIMEOUT) as sock:
+            sock.sendall(self._payload.encode("utf-8"))
+            response = sock.recv(1024)
+        return response.decode("utf-8").strip()
+
+    def _parse_payload(self, data: str) -> MicroAQUAData:
+        if self._expected_prefix not in data:
+            raise ValueError("Unexpected payload prefix")
+        start_index = data.find(self._expected_prefix)
+        payload = data[start_index + len(self._expected_prefix) :]
+        parts = payload.split(";")
+        if len(parts) < 23:
+            raise ValueError("Incomplete payload")
+
+        ph_value = _parse_float(parts[0], 100.0)
+        temperatures = tuple(
+            _parse_float(value, 10.0)
+            for value in (parts[1:5] + parts[20:23])
+        )
+        leds = tuple(_parse_int(value) for value in parts[13:17])
+        last_update_time = _parse_time(parts[19])
+
+        return MicroAQUAData(
+            ph=ph_value,
+            temperatures=temperatures,
+            leds=leds,
+            last_update_time=last_update_time,
+        )
 
 
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, self._ip)},  # Identifiers umożliwiają automatyczną rejestrację urządzenia
-            "name": f"{self._name} {self._ip} {self._port}",
-            "manufacturer": "microAQUA",
-            "model": "microAQUA"
-        }
-        # self.entity_id = generate_entity_id("sensor.{}", "my_awesome_sensor_id")
+async def async_setup_entry(
+    hass: HomeAssistant,
+    config_entry: ConfigEntry,
+    async_add_entities,
+) -> None:
+    """Set up the sensor platform from a config entry."""
+    host = config_entry.data.get(CONF_HOST) or config_entry.data.get("ip")
+    if not host:
+        raise ConfigEntryNotReady("Missing host/IP address in configuration")
+    port = config_entry.data.get(CONF_PORT, config_entry.data.get("port", DEFAULT_PORT))
+    payload = config_entry.data.get(
+        CONF_PAYLOAD, config_entry.data.get("payload", DEFAULT_PAYLOAD)
+    )
+    name = config_entry.data.get(CONF_NAME, config_entry.data.get("name", DEFAULT_NAME))
+
+    coordinator = MicroAQUADataUpdateCoordinator(hass, host, port, payload)
+    await coordinator.async_config_entry_first_refresh()
+
+    async_add_entities(
+        [
+            PHSensor(coordinator, config_entry, name),
+            TempSensor(coordinator, config_entry, name, "Temp 1", 0),
+            TempSensor(coordinator, config_entry, name, "Temp 2", 1),
+            TempSensor(coordinator, config_entry, name, "Temp 3", 2),
+            TempSensor(coordinator, config_entry, name, "Temp 4", 3),
+            LEDSensor(coordinator, config_entry, name, 1),
+            LEDSensor(coordinator, config_entry, name, 2),
+            LEDSensor(coordinator, config_entry, name, 3),
+            LEDSensor(coordinator, config_entry, name, 4),
+            LastUpdateTimeSensor(coordinator, config_entry, name),
+            TempSensor(
+                coordinator,
+                config_entry,
+                name,
+                "Alarm Temp min",
+                4,
+                icon="mdi:thermometer-alert",
+            ),
+            TempSensor(
+                coordinator,
+                config_entry,
+                name,
+                "Alarm Temp max",
+                5,
+                icon="mdi:thermometer-alert",
+            ),
+            TempSensor(
+                coordinator,
+                config_entry,
+                name,
+                "Alarm Temp hysteresis",
+                6,
+                icon="mdi:thermometer-alert",
+            ),
+        ]
+    )
+
+
+class MicroAQUABaseEntity(CoordinatorEntity[MicroAQUAData]):
+    """Base entity for microAQUA entities."""
+
+    _attr_has_entity_name = True
+
+    def __init__(
+        self,
+        coordinator: MicroAQUADataUpdateCoordinator,
+        config_entry: ConfigEntry,
+        name: str,
+    ) -> None:
+        super().__init__(coordinator)
+        self._config_entry = config_entry
+        self._device_name = name
 
     @property
-    def name(self):
-        """Return the name of the sensor."""
-        return self._name
-
-    @property
-    def state(self):
-        """Return the current state."""
-        return self._state
-
-    @property
-    def unique_id(self):
-        """Return a unique ID."""
-        return f"{self._name}_{self._ip}"
-
-    async def async_update(self):
-        """Fetch new state data from the device."""
-            # Sprawdzenie, czy entity_id jest ustawione
-        if not self.entity_id:
-            _LOGGER.debug("Entity ID is not set. Skipping update.")
-            return
-        try:
-            data = await self._fetch_data()
-            valid_data = self._validate_response(data)
-
-            if valid_data:
-                # Parsowanie danych na różne encje
-                parsed_data = valid_data.split(";")
-                self._ph_value = self._parse_ph(parsed_data[0])  # pH
-                self._temp_values = [self._parse_temp(temp) for temp in parsed_data[1:5]+ parsed_data[20:23]]  # Temperatury
-                self._led = [self._parse_led(led) for led in parsed_data[13:17]]  # LEDy
-                self._last_update_time = self._parse_time_stamp(parsed_data[19])  # LAst Update Time
-
-                self._state = "updated"  # Stan sensora aktualny
-                self._error_count = 0  # Zresetuj licznik błędów po poprawnej odpowiedzi
-                self.async_write_ha_state()  # Aktualizacja stanu encji w Home Assistant
-            else:
-                _LOGGER.warning("Invalid response from device: %s", data)
-                self._handle_error()
-
-        except socket.timeout:
-            _LOGGER.warning("Timeout while connecting to %s:%s", self._ip, self._port)
-            self._handle_error()
-
-        except (socket.error, socket.gaierror) as e:
-            _LOGGER.error("TCP connection error: %s", e)
-            self._handle_error()
-
-        except Exception as e:
-            _LOGGER.error("Unexpected error: %s", e)
-            self._handle_error()
-
-    async def _fetch_data(self):
-        """Fetch data from the device."""
-        loop = asyncio.get_event_loop()
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.settimeout(TIMEOUT)  # Ustawienie limitu czasu
-                await loop.run_in_executor(None, sock.connect, (self._ip, self._port))
-                await loop.run_in_executor(None, sock.sendall, self._payload.encode("utf-8"))
-                response = await loop.run_in_executor(None, sock.recv, 1024)
-                return response.decode("utf-8").strip()
-        except Exception as e:
-            raise e  # Przekazanie błędu do `async_update`
-
-    def _validate_response(self, data):
-        """Validate and parse the response from the device."""
-        if self._expected_prefix in data:
-            start_index = data.find(self._expected_prefix)
-            return data[start_index + len(self._expected_prefix):]
-        return None
-
-    def _handle_error(self):
-        """Handle errors and increment error count."""
-        self._error_count += 1
-        if self._error_count >= 5:
-            self._state = "unknown"  # Ustaw stan sensora na unknown po 5 błędach
-            self.async_write_ha_state()  # Aktualizacja stanu encji w Home Assistant
-
-    def _parse_ph(self, value):
-        """Parse pH value."""
-        try:
-            return float(value) / 100.0
-        except ValueError:
-            return "unknown"
-
-    def _parse_temp(self, value):
-        """Parse temperature value."""
-        try:
-            return float(value) / 10.0
-        except ValueError:
-            return "unknown"
-
-    def _parse_led(self, value):
-        """Parse led brightness value."""
-        try:
-            return int(value)
-        except ValueError:
-            return "unknown"
-        
-    def _parse_time_stamp(self, value):
-        """Parse time_stamp value."""
-        try:
-            # Convert to datetime object
-            time_obj = datetime.strptime(value, "%H:%M:%S")
-            return time_obj.time()
-        except ValueError:
-            return "unknown"
-        
-        
+    def device_info(self) -> DeviceInfo:
+        return DeviceInfo(
+            identifiers={(DOMAIN, self._config_entry.entry_id)},
+            name=self._device_name,
+            manufacturer="microAQUA",
+            model="microAQUA",
+            configuration_url=f"tcp://{self._config_entry.data[CONF_HOST]}:{self._config_entry.data[CONF_PORT]}",
+        )
 
 
-# Klasy dla sensora pH, temperatury i LED
-
-class PHSensor(Entity):
+class PHSensor(MicroAQUABaseEntity, SensorEntity):
     """Representation of pH value from microAQUA Sensor."""
 
-    def __init__(self, sensor):
-        self._sensor = sensor
-        self._unit_of_measurement = "pH"
+    _attr_native_unit_of_measurement: Final = "pH"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        coordinator: MicroAQUADataUpdateCoordinator,
+        config_entry: ConfigEntry,
+        name: str,
+    ) -> None:
+        super().__init__(coordinator, config_entry, name)
+        self._attr_unique_id = f"{config_entry.entry_id}_ph"
+        self._attr_name = "pH"
+        self._attr_icon = "mdi:ph"
 
     @property
-    def name(self):
-        return f"{self._sensor.name} pH"
-
-    @property
-    def state(self):
-        return self._sensor._ph_value
-
-    @property
-    def icon(self):
-        return "mdi:ph"
-
-    @property
-    def unit_of_measurement(self):
-        return self._unit_of_measurement
-    
-    @property
-    def unique_id(self):
-        """Return a unique ID."""
-        return f"{self._sensor.name}_ph"
+    def native_value(self) -> float | None:
+        return self.coordinator.data.ph
 
 
-class TempSensor(Entity):
+class TempSensor(MicroAQUABaseEntity, SensorEntity):
     """Representation of a temperature value from microAQUA Sensor."""
 
-    def __init__(self, sensor, name, index, icon="mdi:thermometer"):
-        self._sensor = sensor
+    _attr_device_class = SensorDeviceClass.TEMPERATURE
+    _attr_native_unit_of_measurement = UnitOfTemperature.CELSIUS
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        coordinator: MicroAQUADataUpdateCoordinator,
+        config_entry: ConfigEntry,
+        name: str,
+        label: str,
+        index: int,
+        icon: str | None = None,
+    ) -> None:
+        super().__init__(coordinator, config_entry, name)
         self._index = index
-        self._unit_of_measurement = "°C"
-        self._name = name
-        self._icon = icon
+        self._attr_unique_id = f"{config_entry.entry_id}_temp_{index}"
+        self._attr_name = label
+        if icon:
+            self._attr_icon = icon
 
     @property
-    def name(self):
-        return f"{self._sensor.name} {self._name}"
-
-    @property
-    def state(self):
-        return self._sensor._temp_values[self._index - 1]
-
-    @property
-    def icon(self):
-        return self._icon
-
-    @property
-    def unit_of_measurement(self):
-        return self._unit_of_measurement
-    @property
-    def unique_id(self):
-        """Return a unique ID."""
-        return f"{self._sensor.name}_{self._name}"
+    def native_value(self) -> float | None:
+        return self.coordinator.data.temperatures[self._index]
 
 
-class LED(Entity):
+class LEDSensor(MicroAQUABaseEntity, SensorEntity):
     """Representation of a LED value from microAQUA Sensor."""
 
-    def __init__(self, sensor, index):
-        self._sensor = sensor
-        self._index = index
-        self._unit_of_measurement = "%"
+    _attr_native_unit_of_measurement = "%"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(
+        self,
+        coordinator: MicroAQUADataUpdateCoordinator,
+        config_entry: ConfigEntry,
+        name: str,
+        index: int,
+    ) -> None:
+        super().__init__(coordinator, config_entry, name)
+        self._index = index - 1
+        self._attr_unique_id = f"{config_entry.entry_id}_led_{index}"
+        self._attr_name = f"LED {index}"
+        self._attr_icon = "mdi:led-on"
 
     @property
-    def name(self):
-        return f"{self._sensor.name} LED {self._index}"
+    def native_value(self) -> int | None:
+        return self.coordinator.data.leds[self._index]
+
+
+class LastUpdateTimeSensor(MicroAQUABaseEntity, SensorEntity):
+    """Representation of Last Update Time from microAQUA Sensor."""
+
+    _attr_icon = "mdi:update"
+
+    def __init__(
+        self,
+        coordinator: MicroAQUADataUpdateCoordinator,
+        config_entry: ConfigEntry,
+        name: str,
+    ) -> None:
+        super().__init__(coordinator, config_entry, name)
+        self._attr_unique_id = f"{config_entry.entry_id}_last_update_time"
+        self._attr_name = "Last Update Time"
 
     @property
-    def state(self):
-        return self._sensor._led[self._index - 1]
+    def native_value(self) -> str | None:
+        return self.coordinator.data.last_update_time
 
-    @property
-    def icon(self):
-        return "mdi:led-on"
 
-    @property
-    def unit_of_measurement(self):
-        return self._unit_of_measurement
-    
-    @property
-    def unique_id(self):
-        """Return a unique ID."""
-        return f"{self._sensor.name}_led_{self._index}"
-    
-class LastUpdateTime(Entity):
-    """Representation of LastUpdateTime value from microAQUA Sensor."""
+def _parse_float(value: str, divisor: float) -> float | None:
+    try:
+        return float(value) / divisor
+    except ValueError:
+        return None
 
-    def __init__(self, sensor):
-        self._sensor = sensor
-        
 
-    @property
-    def name(self):
-        return f"{self._sensor.name} Last Update Time"
+def _parse_int(value: str) -> int | None:
+    try:
+        return int(value)
+    except ValueError:
+        return None
 
-    @property
-    def state(self):
-        return self._sensor._last_update_time
 
-    @property
-    def icon(self):
-        return "mdi:update"
-    
-    @property
-    def unique_id(self):
-        """Return a unique ID."""
-        return f"{self._sensor.name}_last_update_time"
+def _parse_time(value: str) -> str | None:
+    try:
+        return time.fromisoformat(value).strftime("%H:%M:%S")
+    except ValueError:
+        return None
