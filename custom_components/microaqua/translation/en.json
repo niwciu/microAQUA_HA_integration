@@ -5,12 +5,15 @@
         "title": "Configure TCP Sensor",
         "description": "Set up a TCP sensor",
         "data": {
-          "host": "Host",
+          "host": "Host or IP address",
           "port": "Port",
           "name": "Name",
           "payload": "Payload"
         }
       }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the device."
     }
   }
 }
