@@ -16,6 +16,7 @@ from homeassistant.components.sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_NAME, CONF_PORT, UnitOfTemperature
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -23,7 +24,15 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 
-from .const import CONF_PAYLOAD, DOMAIN, SCAN_INTERVAL, TIMEOUT
+from .const import (
+    CONF_PAYLOAD,
+    DEFAULT_NAME,
+    DEFAULT_PAYLOAD,
+    DEFAULT_PORT,
+    DOMAIN,
+    SCAN_INTERVAL,
+    TIMEOUT,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -99,10 +108,14 @@ async def async_setup_entry(
     async_add_entities,
 ) -> None:
     """Set up the sensor platform from a config entry."""
-    host = config_entry.data[CONF_HOST]
-    port = config_entry.data[CONF_PORT]
-    payload = config_entry.data[CONF_PAYLOAD]
-    name = config_entry.data[CONF_NAME]
+    host = config_entry.data.get(CONF_HOST) or config_entry.data.get("ip")
+    if not host:
+        raise ConfigEntryNotReady("Missing host/IP address in configuration")
+    port = config_entry.data.get(CONF_PORT, config_entry.data.get("port", DEFAULT_PORT))
+    payload = config_entry.data.get(
+        CONF_PAYLOAD, config_entry.data.get("payload", DEFAULT_PAYLOAD)
+    )
+    name = config_entry.data.get(CONF_NAME, config_entry.data.get("name", DEFAULT_NAME))
 
     coordinator = MicroAQUADataUpdateCoordinator(hass, host, port, payload)
     await coordinator.async_config_entry_first_refresh()
