@@ -27,8 +27,8 @@ class NoRegTimeMinutes(NumberEntity):
         self._m = master
         self._native_value = 0  # domyślnie
 
-        # zsynchronizuj master z wartością początkową
-        self._m._no_reg_set_minutes = self._native_value
+        # Synchronizacja z masterem (button korzysta z tej wartości)
+        self._m._no_reg_set_minutes = int(self._native_value)
 
     @property
     def unique_id(self) -> str:
@@ -45,7 +45,7 @@ class NoRegTimeMinutes(NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         self._native_value = int(round(value))
 
-        # KLUCZOWE: zapisz też w masterze, żeby button nie musiał niczego szukać w registry
-        self._m._no_reg_set_minutes = self._native_value
+        # KLUCZOWE: button.py czyta to bezpośrednio
+        self._m._no_reg_set_minutes = int(self._native_value)
 
         self.async_write_ha_state()

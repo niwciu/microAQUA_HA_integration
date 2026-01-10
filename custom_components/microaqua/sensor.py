@@ -37,16 +37,16 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
             TempSensor(master, "Temp 2", 2),
             TempSensor(master, "Temp 3", 3),
             TempSensor(master, "Temp 4", 4),
-            LED(master, 1),
-            LED(master, 2),
-            LED(master, 3),
-            LED(master, 4),
+            LEDSensor(master, 1),
+            LEDSensor(master, 2),
+            LEDSensor(master, 3),
+            LEDSensor(master, 4),
             LastUpdateTime(master),
 
             # --- progi temperatury (20..22 z payloadu) ---
             TempSensor(master, "Alarm Temp min", 5, "mdi:thermometer-alert"),
             TempSensor(master, "Alarm Temp max", 6, "mdi:thermometer-alert"),
-            TempSensor(master, "Alarm Temp histeresis", 7, "mdi:thermometer-alert"),
+            TempSensor(master, "Alarm Temp hysteresis", 7, "mdi:thermometer-alert"),
 
             # --- statusy jak z YAML ---
             NoRegTime(master),          # [17]
@@ -76,9 +76,13 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 class MicroAQUASensor(SensorEntity):
     """Master entity: connects, polls and parses the microAQUA payload."""
 
+    _attr_has_entity_name = True
+    _attr_name = "Status"
+    _attr_icon = "mdi:raspberry-pi"
+
     def __init__(self, hass, ip, port, payload, name):
         self._hass = hass
-        self._name = name
+        self._display_name = name  # nazwa urządzenia z config flow
         self._ip = ip
         self._port = port
         self._payload = f"AT+{payload}\r\n"
@@ -88,7 +92,6 @@ class MicroAQUASensor(SensorEntity):
         self._error_count = 0
 
         # Value used by number.py (No regulation time set, minutes)
-        # button.py should use this to send AT+TCPENRM;<minutes>
         self._no_reg_set_minutes: int = 0
 
         # podstawowe
@@ -113,29 +116,28 @@ class MicroAQUASensor(SensorEntity):
         self._alarm_ph_max = None                 # [24]
         self._alarm_ph_hysteresis = None          # [25]
 
+        # Kluczowe: nazwa urządzenia krótka, bez IP/port (żeby UI nie puchło)
         self._attr_device_info = {
             "identifiers": {(DOMAIN, self._ip)},
-            "name": f"{self._name} {self._ip} {self._port}",
+            "name": self._display_name,
             "manufacturer": "microAQUA",
             "model": "microAQUA",
         }
 
     @property
-    def name(self):
-        return self._name
+    def unique_id(self):
+        return f"{self._display_name}_{self._ip}"
 
     @property
     def state(self):
         return self._state
 
     @property
-    def unique_id(self):
-        return f"{self._name}_{self._ip}"
-
-    @property
     def extra_state_attributes(self):
         """Informacyjne atrybuty (nie muszą być osobnymi encjami)."""
         return {
+            "ip": self._ip,
+            "port": self._port,
             "alarm_temp_min_c": self._temp_values[4],
             "alarm_temp_max_c": self._temp_values[5],
             "alarm_temp_hysteresis_c": self._temp_values[6],
@@ -161,7 +163,6 @@ class MicroAQUASensor(SensorEntity):
             sock.settimeout(TIMEOUT)
             await loop.run_in_executor(None, sock.connect, (self._ip, self._port))
             await loop.run_in_executor(None, sock.sendall, msg.encode("utf-8"))
-            # Nie zawsze jest odpowiedź, ale spróbuj odebrać żeby domknąć połączenie
             try:
                 await loop.run_in_executor(None, sock.recv, 1024)
             except Exception:
@@ -191,7 +192,6 @@ class MicroAQUASensor(SensorEntity):
             self._ph_value = self._parse_ph(g(0))
             temps_part = [g(i) for i in [1, 2, 3, 4, 20, 21, 22]]
             self._temp_values = [self._parse_temp(v) for v in temps_part]
-
             self._led = [self._parse_led(g(i)) for i in [13, 14, 15, 16]]
             self._last_update_time = self._parse_time_stamp(g(19))
 
@@ -301,6 +301,8 @@ class MicroAQUASensor(SensorEntity):
 class MicroAQUAChildSensor(SensorEntity):
     """Base class: attaches to device + uses master reference."""
 
+    _attr_has_entity_name = True
+
     def __init__(self, master: MicroAQUASensor):
         self._m = master
 
@@ -312,12 +314,8 @@ class MicroAQUAChildSensor(SensorEntity):
 # ---------------------- BASIC SENSORS ----------------------
 
 class PHSensor(MicroAQUAChildSensor):
-    def __init__(self, master: MicroAQUASensor):
-        super().__init__(master)
-
-    @property
-    def name(self):
-        return f"{self._m.name} pH"
+    _attr_name = "pH"
+    _attr_icon = "mdi:ph"
 
     @property
     def state(self):
@@ -328,62 +326,40 @@ class PHSensor(MicroAQUAChildSensor):
         return "pH"
 
     @property
-    def icon(self):
-        return "mdi:ph"
-
-    @property
     def unique_id(self):
         return f"{self._m.unique_id}_ph"
 
 
 class TempSensor(MicroAQUAChildSensor):
+    _attr_native_unit_of_measurement = "°C"
+
     def __init__(self, master: MicroAQUASensor, name: str, index: int, icon="mdi:thermometer"):
         super().__init__(master)
         self._index = index
-        self._name = name
-        self._icon = icon
-
-    @property
-    def name(self):
-        return f"{self._m.name} {self._name}"
+        self._attr_name = name
+        self._attr_icon = icon
 
     @property
     def state(self):
         return self._m._temp_values[self._index - 1]
 
     @property
-    def unit_of_measurement(self):
-        return "°C"
-
-    @property
-    def icon(self):
-        return self._icon
-
-    @property
     def unique_id(self):
         return f"{self._m.unique_id}_temp_{self._index}"
 
 
-class LED(MicroAQUAChildSensor):
+class LEDSensor(MicroAQUAChildSensor):
+    _attr_native_unit_of_measurement = "%"
+    _attr_icon = "mdi:led-on"
+
     def __init__(self, master: MicroAQUASensor, index: int):
         super().__init__(master)
         self._index = index
-
-    @property
-    def name(self):
-        return f"{self._m.name} LED {self._index}"
+        self._attr_name = f"LED {index}"
 
     @property
     def state(self):
         return self._m._led[self._index - 1]
-
-    @property
-    def unit_of_measurement(self):
-        return "%"
-
-    @property
-    def icon(self):
-        return "mdi:led-on"
 
     @property
     def unique_id(self):
@@ -391,17 +367,12 @@ class LED(MicroAQUAChildSensor):
 
 
 class LastUpdateTime(MicroAQUAChildSensor):
-    @property
-    def name(self):
-        return f"{self._m.name} Last Update Time"
+    _attr_name = "Last update time"
+    _attr_icon = "mdi:update"
 
     @property
     def state(self):
         return self._m._last_update_time
-
-    @property
-    def icon(self):
-        return "mdi:update"
 
     @property
     def unique_id(self):
@@ -413,9 +384,8 @@ class LastUpdateTime(MicroAQUAChildSensor):
 class NoRegTime(MicroAQUAChildSensor):
     """Czas bez regulacji (parsed_data[17]) — w YAML: uaqua_1_no_reg_time"""
 
-    @property
-    def name(self):
-        return f"{self._m.name} No regulation time"
+    _attr_name = "No regulation time"
+    _attr_icon = "mdi:power-plug-off"
 
     @property
     def state(self):
@@ -423,10 +393,6 @@ class NoRegTime(MicroAQUAChildSensor):
         if v is None:
             return None
         return "--" if v == 0 else f"{v}min"
-
-    @property
-    def icon(self):
-        return "mdi:power-plug-off"
 
     @property
     def unique_id(self):
@@ -454,9 +420,8 @@ def _socket_state_text(assigned: Optional[int], state: Optional[int], reg_off: O
 
 
 class ThermoregSocket(MicroAQUAChildSensor):
-    @property
-    def name(self):
-        return f"{self._m.name} Thermoreg socket"
+    _attr_name = "Thermoreg socket"
+    _attr_icon = "mdi:power-socket-eu"
 
     @property
     def state(self):
@@ -467,18 +432,13 @@ class ThermoregSocket(MicroAQUAChildSensor):
         )
 
     @property
-    def icon(self):
-        return "mdi:power-socket-eu"
-
-    @property
     def unique_id(self):
         return f"{self._m.unique_id}_thermoreg_socket"
 
 
 class CO2Socket(MicroAQUAChildSensor):
-    @property
-    def name(self):
-        return f"{self._m.name} CO2 socket"
+    _attr_name = "CO2 socket"
+    _attr_icon = "mdi:power-socket-eu"
 
     @property
     def state(self):
@@ -489,18 +449,13 @@ class CO2Socket(MicroAQUAChildSensor):
         )
 
     @property
-    def icon(self):
-        return "mdi:power-socket-eu"
-
-    @property
     def unique_id(self):
         return f"{self._m.unique_id}_co2_socket"
 
 
 class O2Socket(MicroAQUAChildSensor):
-    @property
-    def name(self):
-        return f"{self._m.name} O2 socket"
+    _attr_name = "O2 socket"
+    _attr_icon = "mdi:power-socket-eu"
 
     @property
     def state(self):
@@ -511,10 +466,6 @@ class O2Socket(MicroAQUAChildSensor):
         )
 
     @property
-    def icon(self):
-        return "mdi:power-socket-eu"
-
-    @property
     def unique_id(self):
         return f"{self._m.unique_id}_o2_socket"
 
@@ -522,9 +473,8 @@ class O2Socket(MicroAQUAChildSensor):
 class FanController(MicroAQUAChildSensor):
     """Odtwarza tekstowy opis jak w YAML: uaqua_1_fan_controller"""
 
-    @property
-    def name(self):
-        return f"{self._m.name} Fan controller"
+    _attr_name = "Fan controller"
+    _attr_icon = "mdi:fan"
 
     @property
     def state(self):
@@ -558,10 +508,6 @@ class FanController(MicroAQUAChildSensor):
         return "Praca ON/OFF: Stan ON" if speed != 0 else "Praca ON/OFF: Stan OFF"
 
     @property
-    def icon(self):
-        return "mdi:fan"
-
-    @property
     def unique_id(self):
         return f"{self._m.unique_id}_fan_controller"
 
@@ -575,9 +521,8 @@ def _bit_is_set(value: Optional[int], bitmask: int) -> bool:
 
 
 class TempAlarms(MicroAQUAChildSensor):
-    @property
-    def name(self):
-        return f"{self._m.name} Temp alarms"
+    _attr_name = "Temp alarms"
+    _attr_icon = "mdi:thermometer-alert"
 
     @property
     def state(self):
@@ -596,18 +541,13 @@ class TempAlarms(MicroAQUAChildSensor):
         return "---"
 
     @property
-    def icon(self):
-        return "mdi:thermometer-alert"
-
-    @property
     def unique_id(self):
         return f"{self._m.unique_id}_temp_alarms"
 
 
 class PhAlarms(MicroAQUAChildSensor):
-    @property
-    def name(self):
-        return f"{self._m.name} pH alarms"
+    _attr_name = "pH alarms"
+    _attr_icon = "mdi:alert"
 
     @property
     def state(self):
@@ -626,18 +566,13 @@ class PhAlarms(MicroAQUAChildSensor):
         return "---"
 
     @property
-    def icon(self):
-        return "mdi:alert"
-
-    @property
     def unique_id(self):
         return f"{self._m.unique_id}_ph_alarms"
 
 
 class AcousticAlarmStatus(MicroAQUAChildSensor):
-    @property
-    def name(self):
-        return f"{self._m.name} Acoustic alarm"
+    _attr_name = "Acoustic alarm"
+    _attr_icon = "mdi:volume-high"
 
     @property
     def state(self):
@@ -650,10 +585,6 @@ class AcousticAlarmStatus(MicroAQUAChildSensor):
         return "OFF"
 
     @property
-    def icon(self):
-        return "mdi:volume-high"
-
-    @property
     def unique_id(self):
         return f"{self._m.unique_id}_acoustic_alarm"
 
@@ -661,9 +592,8 @@ class AcousticAlarmStatus(MicroAQUAChildSensor):
 # ---------------------- pH threshold sensors ----------------------
 
 class AlarmPhMinValue(MicroAQUAChildSensor):
-    @property
-    def name(self):
-        return f"{self._m.name} Alarm pH min value"
+    _attr_name = "Alarm pH min value"
+    _attr_icon = "mdi:alert"
 
     @property
     def state(self):
@@ -674,18 +604,13 @@ class AlarmPhMinValue(MicroAQUAChildSensor):
         return "pH"
 
     @property
-    def icon(self):
-        return "mdi:alert"
-
-    @property
     def unique_id(self):
         return f"{self._m.unique_id}_alarm_ph_min"
 
 
 class AlarmPhMaxValue(MicroAQUAChildSensor):
-    @property
-    def name(self):
-        return f"{self._m.name} Alarm pH max value"
+    _attr_name = "Alarm pH max value"
+    _attr_icon = "mdi:alert"
 
     @property
     def state(self):
@@ -696,18 +621,13 @@ class AlarmPhMaxValue(MicroAQUAChildSensor):
         return "pH"
 
     @property
-    def icon(self):
-        return "mdi:alert"
-
-    @property
     def unique_id(self):
         return f"{self._m.unique_id}_alarm_ph_max"
 
 
 class AlarmPhHysteresis(MicroAQUAChildSensor):
-    @property
-    def name(self):
-        return f"{self._m.name} Alarm pH hysteresis"
+    _attr_name = "Alarm pH hysteresis"
+    _attr_icon = "mdi:alert"
 
     @property
     def state(self):
@@ -718,10 +638,6 @@ class AlarmPhHysteresis(MicroAQUAChildSensor):
         return "pH"
 
     @property
-    def icon(self):
-        return "mdi:alert"
-
-    @property
     def unique_id(self):
         return f"{self._m.unique_id}_alarm_ph_hysteresis"
 
@@ -729,17 +645,12 @@ class AlarmPhHysteresis(MicroAQUAChildSensor):
 # ---------------------- optional raw debug sensors ----------------------
 
 class FanDriverModeRaw(MicroAQUAChildSensor):
-    @property
-    def name(self):
-        return f"{self._m.name} Fan driver mode (raw)"
+    _attr_name = "Fan driver mode (raw)"
+    _attr_icon = "mdi:chip"
 
     @property
     def state(self):
         return self._m._fan_driver_mode
-
-    @property
-    def icon(self):
-        return "mdi:chip"
 
     @property
     def unique_id(self):
@@ -747,17 +658,12 @@ class FanDriverModeRaw(MicroAQUAChildSensor):
 
 
 class FanSpeedRaw(MicroAQUAChildSensor):
-    @property
-    def name(self):
-        return f"{self._m.name} Fan speed (raw)"
+    _attr_name = "Fan speed (raw)"
+    _attr_icon = "mdi:speedometer"
 
     @property
     def state(self):
         return self._m._fan_speed
-
-    @property
-    def icon(self):
-        return "mdi:speedometer"
 
     @property
     def unique_id(self):

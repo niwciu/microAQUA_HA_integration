@@ -26,6 +26,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 class _MicroAquaButton(ButtonEntity):
     """Base: attached to microAQUA device."""
 
+    _attr_has_entity_name = True
+
     def __init__(self, master):
         self._m = master
 
@@ -35,7 +37,6 @@ class _MicroAquaButton(ButtonEntity):
 
 
 class DisarmSoundAlarmButton(_MicroAquaButton):
-    _attr_has_entity_name = True
     _attr_name = "Disarm sound alarm"
     _attr_icon = "mdi:volume-off"
 
@@ -45,8 +46,7 @@ class DisarmSoundAlarmButton(_MicroAquaButton):
 
     async def async_press(self) -> None:
         try:
-            # shell_command.disarm_sound_alarm_cmd:
-            # printf "AT+TCPTOA\r\n"
+            # AT+TCPTOA
             await self._m.async_send_command("AT+TCPTOA")
             await self._m.async_update()
         except Exception as e:
@@ -54,7 +54,6 @@ class DisarmSoundAlarmButton(_MicroAquaButton):
 
 
 class NoRegOffButton(_MicroAquaButton):
-    _attr_has_entity_name = True
     _attr_name = "No regulation OFF"
     _attr_icon = "mdi:power-plug-off"
 
@@ -64,8 +63,7 @@ class NoRegOffButton(_MicroAquaButton):
 
     async def async_press(self) -> None:
         try:
-            # shell_command.no_reg_off_cmd:
-            # printf "AT+TCPLNRM\r\n"
+            # AT+TCPLNRM
             await self._m.async_send_command("AT+TCPLNRM")
             await self._m.async_update()
         except Exception as e:
@@ -73,8 +71,7 @@ class NoRegOffButton(_MicroAquaButton):
 
 
 class NoRegOnButton(_MicroAquaButton):
-    _attr_has_entity_name = True
-    _attr_name = "No regulation ON (use set minutes)"
+    _attr_name = "No regulation ON"
     _attr_icon = "mdi:power-plug"
 
     @property
@@ -83,11 +80,8 @@ class NoRegOnButton(_MicroAquaButton):
 
     async def async_press(self) -> None:
         try:
-            # Bierzemy minuty bezpośrednio z mastera (ustawiane przez number.py)
             minutes = int(getattr(self._m, "_no_reg_set_minutes", 0))
-
-            # shell_command.uaqua_1_no_reg_on_cmd:
-            # printf "AT+TCPENRM;"<minutes>"\r\n"
+            # AT+TCPENRM;<minutes>
             await self._m.async_send_command(f"AT+TCPENRM;{minutes}")
             await self._m.async_update()
         except Exception as e:
