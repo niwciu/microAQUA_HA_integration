@@ -62,7 +62,7 @@ class MicroAQUAConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @config_entries.callback
     def async_get_options_flow(config_entry):
-        return MicroAQUAOptionsFlow(config_entry)
+        return MicroAQUAOptionsFlow()
 
 
 class MicroAQUAOptionsFlow(config_entries.OptionsFlow):
