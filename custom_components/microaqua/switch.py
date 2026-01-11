@@ -3,8 +3,9 @@ from __future__ import annotations
 import logging
 
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.event import async_track_state_change_event
 
 from .const import DOMAIN
 
@@ -24,9 +25,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 
 class _MicroAquaSwitch(SwitchEntity):
     _attr_has_entity_name = False
+    _attr_should_poll = False
 
     def __init__(self, master):
         self._m = master
+        self._unsub_state = None
 
     @property
     def device_info(self):
@@ -35,6 +38,24 @@ class _MicroAquaSwitch(SwitchEntity):
     @property
     def available(self) -> bool:
         return self._m.available
+
+    async def async_added_to_hass(self) -> None:
+        await super().async_added_to_hass()
+        if self._m.entity_id:
+            self._unsub_state = async_track_state_change_event(
+                self.hass,
+                [self._m.entity_id],
+                self._handle_master_state_change,
+            )
+
+    async def async_will_remove_from_hass(self) -> None:
+        if self._unsub_state:
+            self._unsub_state()
+            self._unsub_state = None
+
+    @callback
+    def _handle_master_state_change(self, _event) -> None:
+        self.async_write_ha_state()
 
 
 class RegulationOnOffSwitch(_MicroAquaSwitch):
