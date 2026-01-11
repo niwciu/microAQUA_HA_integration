@@ -9,3 +9,4 @@ Integration connect to your microAQUA device, geta all measurements and output s
 3. Restart Home Assistant.
 4. Go to Settings -> Device and services and add microAQUA integrarion 
 5. PAss corrent IP, port and payload -> all parameters can be read from microAQUA device menu.
+6. Additionaly you can change default timings for sensor

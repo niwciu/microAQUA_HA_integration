@@ -409,7 +409,7 @@ class DataValidSensor(MicroAQUAChildSensor):
 
     def __init__(self, master: MicroAQUASensor):
         super().__init__(master)
-        self._attr_name = f"{self._m.display_name} - data valid"
+        self._attr_name = f"{self._m.display_name} Data valid"
 
     @property
     def state(self):
@@ -433,7 +433,7 @@ class DataAgeSensor(MicroAQUAChildSensor):
 
     def __init__(self, master: MicroAQUASensor):
         super().__init__(master)
-        self._attr_name = f"{self._m.display_name} - data age"
+        self._attr_name = f"{self._m.display_name} Data age"
 
     @property
     def state(self):
