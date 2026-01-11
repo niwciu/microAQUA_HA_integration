@@ -25,15 +25,16 @@ SCAN_INTERVAL = DEFAULT_SCAN_INTERVAL
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the sensor platform from a config entry."""
-    ip = config_entry.data["ip"]
-    port = config_entry.data["port"]
-    payload = config_entry.data["payload"]
-    name = config_entry.data["name"]
-    update_interval = config_entry.data.get(
-        "update_interval", DEFAULT_UPDATE_INTERVAL
-    )
-    timeout = config_entry.data.get("timeout", DEFAULT_TIMEOUT)
-    data_valid_seconds = config_entry.data.get(
+    def _get_entry_value(key, default=None):
+        return config_entry.options.get(key, config_entry.data.get(key, default))
+
+    ip = _get_entry_value("ip")
+    port = _get_entry_value("port")
+    payload = _get_entry_value("payload")
+    name = _get_entry_value("name")
+    update_interval = _get_entry_value("update_interval", DEFAULT_UPDATE_INTERVAL)
+    timeout = _get_entry_value("timeout", DEFAULT_TIMEOUT)
+    data_valid_seconds = _get_entry_value(
         "data_valid_seconds", DEFAULT_DATA_VALID_SECONDS
     )
 
