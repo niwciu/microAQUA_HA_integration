@@ -6,7 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 from .const import DOMAIN
 
 
-PLATFORMS: list[str] = ["sensor", "button", "number"]
+PLATFORMS: list[str] = ["sensor", "switch", "number"]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
