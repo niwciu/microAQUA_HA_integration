@@ -4,14 +4,20 @@ import asyncio
 import logging
 import re
 import socket
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.util import dt as dt_util
 from homeassistant.util import slugify
 
-from .const import DOMAIN, TIMEOUT, SCAN_INTERVAL as DEFAULT_SCAN_INTERVAL
+from .const import (
+    DOMAIN,
+    DEFAULT_TIMEOUT,
+    DEFAULT_SCAN_INTERVAL,
+    DEFAULT_DATA_VALID_SECONDS,
+    DEFAULT_UPDATE_INTERVAL,
+)
 
 _LOGGER = logging.getLogger(__name__)
 SCAN_INTERVAL = DEFAULT_SCAN_INTERVAL
@@ -23,8 +29,24 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     port = config_entry.data["port"]
     payload = config_entry.data["payload"]
     name = config_entry.data["name"]
+    update_interval = config_entry.data.get(
+        "update_interval", DEFAULT_UPDATE_INTERVAL
+    )
+    timeout = config_entry.data.get("timeout", DEFAULT_TIMEOUT)
+    data_valid_seconds = config_entry.data.get(
+        "data_valid_seconds", DEFAULT_DATA_VALID_SECONDS
+    )
 
-    master = MicroAQUASensor(hass, ip, port, payload, name)
+    master = MicroAQUASensor(
+        hass,
+        ip,
+        port,
+        payload,
+        name,
+        update_interval=update_interval,
+        timeout=timeout,
+        data_valid_seconds=data_valid_seconds,
+    )
 
     # Udostępnij mastera innym platformom (switch/number) przez hass.data
     hass.data.setdefault(DOMAIN, {})
@@ -89,7 +111,18 @@ class MicroAQUASensor(SensorEntity):
     _attr_has_entity_name = False
     _attr_icon = "mdi:raspberry-pi"
 
-    def __init__(self, hass, ip, port, payload, name):
+    def __init__(
+        self,
+        hass,
+        ip,
+        port,
+        payload,
+        name,
+        *,
+        update_interval: int,
+        timeout: int,
+        data_valid_seconds: int,
+    ):
         self._hass = hass
         self._display_name = name  # nazwa urządzenia z config flow
         self._entity_prefix = _derive_entity_prefix(name)
@@ -97,6 +130,8 @@ class MicroAQUASensor(SensorEntity):
         self._port = port
         self._payload = f"AT+{payload}\r\n"
         self._expected_prefix = f"AT+{payload}="
+        self._timeout = timeout
+        self._data_valid_seconds = data_valid_seconds
 
         self._state: Optional[str] = None
         self._error_count = 0
@@ -129,6 +164,7 @@ class MicroAQUASensor(SensorEntity):
         self._alarm_ph_hysteresis = None          # [25]
 
         self._attr_name = self._entity_prefix
+        self._attr_scan_interval = timedelta(seconds=update_interval)
 
         # Kluczowe: nazwa urządzenia krótka, bez IP/port (żeby UI nie puchło)
         self._attr_device_info = {
@@ -165,8 +201,10 @@ class MicroAQUASensor(SensorEntity):
             return None
         return (dt_util.utcnow() - self._last_update_dt).total_seconds()
 
-    def has_recent_data(self, max_age_seconds: int = 5) -> bool:
+    def has_recent_data(self, max_age_seconds: Optional[int] = None) -> bool:
         age = self.data_age_seconds()
+        if max_age_seconds is None:
+            max_age_seconds = self._data_valid_seconds
         return age is not None and age < max_age_seconds
 
     def get_part(self, idx: int) -> Optional[str]:
@@ -203,7 +241,7 @@ class MicroAQUASensor(SensorEntity):
         msg = f"{command}\r\n"
 
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(TIMEOUT)
+            sock.settimeout(self._timeout)
             await loop.run_in_executor(None, sock.connect, (self._ip, self._port))
             await loop.run_in_executor(None, sock.sendall, msg.encode("utf-8"))
             try:
@@ -278,7 +316,7 @@ class MicroAQUASensor(SensorEntity):
     async def _fetch_data(self):
         loop = asyncio.get_event_loop()
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.settimeout(TIMEOUT)
+            sock.settimeout(self._timeout)
             await loop.run_in_executor(None, sock.connect, (self._ip, self._port))
             await loop.run_in_executor(None, sock.sendall, self._payload.encode("utf-8"))
             resp = await loop.run_in_executor(None, sock.recv, 2048)
