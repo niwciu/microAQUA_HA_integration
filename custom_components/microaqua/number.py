@@ -15,8 +15,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry, async_add_e
 class NoRegTimeMinutes(NumberEntity):
     """Number: minutes for AT+TCPENRM;<minutes>."""
 
-    _attr_has_entity_name = True
-    _attr_name = "No regulation time (set)"
+    _attr_has_entity_name = False
+    _attr_name = "Ustaw czas bez regulaji"
     _attr_native_min_value = 0
     _attr_native_max_value = 240
     _attr_native_step = 1
@@ -27,12 +27,12 @@ class NoRegTimeMinutes(NumberEntity):
         self._m = master
         self._native_value = 0  # domyślnie
 
-        # Synchronizacja z masterem (button korzysta z tej wartości)
+        # Synchronizacja z masterem (switch korzysta z tej wartości)
         self._m._no_reg_set_minutes = int(self._native_value)
 
     @property
     def unique_id(self) -> str:
-        return f"{self._m.unique_id}_no_reg_time_set"
+        return f"{self._m.entity_prefix}_set_no_reg_time"
 
     @property
     def device_info(self):
@@ -45,7 +45,7 @@ class NoRegTimeMinutes(NumberEntity):
     async def async_set_native_value(self, value: float) -> None:
         self._native_value = int(round(value))
 
-        # KLUCZOWE: button.py czyta to bezpośrednio
+        # KLUCZOWE: switch.py czyta to bezpośrednio
         self._m._no_reg_set_minutes = int(self._native_value)
 
         self.async_write_ha_state()
