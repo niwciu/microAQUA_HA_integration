@@ -5,10 +5,13 @@
         "title": "Configure TCP Sensor",
         "description": "Set up a TCP sensor",
         "data": {
-          "host": "Host",
+          "ip": "IP address",
           "port": "Port",
           "name": "Name",
-          "payload": "Payload"
+          "payload": "Payload",
+          "update_interval": "Update interval (seconds)",
+          "timeout": "Timeout (seconds)",
+          "data_valid_seconds": "Data validity (seconds)"
         }
       }
     }
