@@ -84,6 +84,15 @@ class DisarmSoundAlarmSwitch(_MicroAquaSwitch):
     def unique_id(self) -> str:
         return f"{self._m.entity_prefix}_disarm_sound_alarm"
 
+    def _alarm_register(self) -> int:
+        raw = self._m.get_part(18)
+        if raw is None:
+            return 0
+        try:
+            return int(raw)
+        except ValueError:
+            return 0
+
     @property
     def available(self) -> bool:
         return self._m.available and self._m.parts_length() > 18
@@ -92,18 +101,12 @@ class DisarmSoundAlarmSwitch(_MicroAquaSwitch):
     def is_on(self) -> bool:
         if not self.available:
             return False
-        raw = self._m.get_part(18)
-        if raw is None:
-            return False
-        value = int(raw)
+        value = self._alarm_register()
         return (value & 128) != 128 and (value & 127) != 0
 
     @property
     def icon(self) -> str:
-        raw = self._m.get_part(18)
-        if raw is None:
-            return "hass:volume-off"
-        value = int(raw)
+        value = self._alarm_register()
         if (value & 127) != 0:
             return "hass:volume-off" if (value & 128) == 128 else "hass:volume-high"
         return "hass:volume-off"
